@@ -166,6 +166,8 @@ function initSocket(server) {
             bookingData._id
           } to provider ${providerId} @ ${radiusKm.toFixed(2)}km`
         );
+      } else {
+        console.log(`Distance too Long for: ${providerId}`);
       }
     }
   }
