@@ -218,6 +218,7 @@ function initSocket(server) {
   }
 
   function scheduleRadiusExpansion(bookingMongoId) {
+    console.log("Expansion Started!");
     clearExpansion(bookingMongoId);
     runExpansionAttempt(bookingMongoId, 0);
   }
