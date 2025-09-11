@@ -1,5 +1,7 @@
 const Booking = require("../../models/Booking");
 const Service = require("../../models/Service");
+const Provider = require("../../models/Provider");
+const { Expo } = require("expo-server-sdk");
 
 exports.checkBookingId = async (req, res) => {
   const exists = await Booking.findOne({ booking_id: req.params.booking_id });
@@ -63,6 +65,50 @@ exports.createBooking = async (req, res) => {
       "payment_id",
       "user_id",
     ]);
+
+    const expo = new Expo({ accessToken: process.env.EXPO_ACCESS_TOKEN });
+    const messages = [];
+
+    const initialRadiusKm = 5;
+
+    const providers = await Provider.find({
+      status: "online",
+      service: category,
+      "location.coordinates": {
+        $nearSphere: {
+          $geometry: {
+            type: "Point",
+            coordinates: [Number(longitude), Number(latitude)],
+          },
+          $maxDistance: initialRadiusKm * 1000,
+        },
+      },
+      pushToken: { $exists: true, $ne: null },
+    });
+
+    // Construct push notifications
+    for (const provider of providers) {
+      if (Expo.isExpoPushToken(provider.pushToken)) {
+        messages.push({
+          to: provider.pushToken,
+          sound: "default",
+          title: "New Job Request!",
+          body: `A new booking has been created for ${category} service near you.`,
+          data: { bookingId: newBooking._id, bookingData: newBooking },
+        });
+      }
+    }
+
+    // Send the notifications
+    const chunks = expo.chunkPushNotifications(messages);
+    for (const chunk of chunks) {
+      try {
+        await expo.sendPushNotificationsAsync(chunk);
+        console.log(`Sent ${chunk.length} push notifications.`);
+      } catch (error) {
+        console.error("Error sending push notifications:", error);
+      }
+    }
 
     const scheduleRadiusExpansion = req.app.get("scheduleRadiusExpansion");
     scheduleRadiusExpansion(newBooking._id);

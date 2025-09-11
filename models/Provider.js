@@ -51,6 +51,11 @@ const providerSchema = new mongoose.Schema({
   profile_pic_url: {
     type: String,
   },
+  pushToken: {
+    type: String,
+    unique: true,
+    sparse: true,
+  },
   created_at: {
     type: Date,
     default: Date.now,
