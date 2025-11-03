@@ -8,11 +8,9 @@ exports.getNotifications = async (req, res) => {
         .status(400)
         .json({ success: false, message: "Provider ID is required" });
     }
-
     const notifications = await Notification.find({ user_id }).sort({
       created_at: -1,
     });
-
     res.json({ success: true, notifications });
   } catch (error) {
     res.status(500).json({ success: false, message: "Server Error" });

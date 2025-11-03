@@ -18,6 +18,7 @@ const serviceRoutes = require("./routes/User/service");
 const bookingRoutes = require("./routes/User/booking");
 const jobRequestRoutes = require("./routes/User/jobRequest");
 const paymentRoutes = require("./routes/User/payment");
+const supportRoutes = require("./routes/User/support");
 
 // Provider
 const addressRouteProvider = require("./routes/Provider/address");
@@ -27,6 +28,7 @@ const notificationRouteProvider = require("./routes/Provider/notification");
 const emailOtpRouteProvider = require("./routes/Provider/email");
 const bookingRouteProvider = require("./routes/Provider/booking");
 const providerRoutes = require("./routes/Provider/provider");
+const supportRouteProvider = require("./routes/Provider/support");
 
 const app = express();
 connectDB();
@@ -39,6 +41,7 @@ app.use("/api/user/otp", otpRouteUser);
 app.use("/api/user/notification", notificationRouteUser);
 app.use("/api/user/emailotp", emailOtpRouteUser);
 app.use("/api/user/review", reviewRouteUser);
+app.use("/api/user/support", supportRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/services", serviceRoutes);
@@ -53,6 +56,7 @@ app.use("/api/provider/review", reviewRouteProvider);
 app.use("/api/provider/notification", notificationRouteProvider);
 app.use("/api/provider/emailotp", emailOtpRouteProvider);
 app.use("/api/provider/booking", bookingRouteProvider);
+app.use("/api/provider/support", supportRouteProvider);
 app.use("/api/providers", providerRoutes);
 
 app.use((req, res) => {

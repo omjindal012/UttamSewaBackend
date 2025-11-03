@@ -1,7 +1,4 @@
 const Booking = require("../../models/Booking");
-const Service = require("../../models/Service");
-const Provider = require("../../models/Provider");
-const { Expo } = require("expo-server-sdk");
 
 exports.checkBookingId = async (req, res) => {
   const exists = await Booking.findOne({ booking_id: req.params.booking_id });
@@ -17,7 +14,7 @@ exports.createBooking = async (req, res) => {
       date,
       time,
       category,
-      service_names,
+      service_ids,
       otp,
       payment_id,
       latitude,
@@ -31,11 +28,11 @@ exports.createBooking = async (req, res) => {
       !date ||
       !time ||
       !category ||
-      !service_names ||
+      !service_ids ||
       !otp ||
       !payment_id ||
-      latitude == null ||
-      longitude == null
+      !latitude ||
+      !longitude
     ) {
       return res
         .status(400)
@@ -49,7 +46,7 @@ exports.createBooking = async (req, res) => {
       date,
       time,
       category,
-      service_names,
+      service_ids,
       otp,
       payment_id,
       bookingLocation: {
@@ -64,54 +61,16 @@ exports.createBooking = async (req, res) => {
     const populatedBooking = await newBooking.populate([
       "payment_id",
       "user_id",
+      "service_ids",
     ]);
-
-    const expo = new Expo({ accessToken: process.env.EXPO_ACCESS_TOKEN });
-    const messages = [];
-
-    const initialRadiusKm = 5;
-
-    const providers = await Provider.find({
-      status: "online",
-      service: category,
-      "location.coordinates": {
-        $nearSphere: {
-          $geometry: {
-            type: "Point",
-            coordinates: [Number(longitude), Number(latitude)],
-          },
-          $maxDistance: initialRadiusKm * 1000,
-        },
-      },
-      pushToken: { $exists: true, $ne: null },
-    });
-
-    // Construct push notifications
-    for (const provider of providers) {
-      if (Expo.isExpoPushToken(provider.pushToken)) {
-        messages.push({
-          to: provider.pushToken,
-          sound: "default",
-          title: "New Job Request!",
-          body: `A new booking has been created for ${category} service near you.`,
-          data: { bookingId: newBooking._id, bookingData: newBooking },
-        });
-      }
-    }
-
-    // Send the notifications
-    const chunks = expo.chunkPushNotifications(messages);
-    for (const chunk of chunks) {
-      try {
-        await expo.sendPushNotificationsAsync(chunk);
-        console.log(`Sent ${chunk.length} push notifications.`);
-      } catch (error) {
-        console.error("Error sending push notifications:", error);
-      }
-    }
+    const serviceWithImage = populatedBooking.service_ids.find(
+      (service) => service && service.image_url
+    );
+    const image_url = serviceWithImage ? serviceWithImage.image_url : null;
+    populatedBooking.image_url = image_url;
 
     const scheduleRadiusExpansion = req.app.get("scheduleRadiusExpansion");
-    scheduleRadiusExpansion(newBooking._id);
+    scheduleRadiusExpansion(populatedBooking._id);
 
     res.status(201).json(populatedBooking);
   } catch (error) {
@@ -125,39 +84,32 @@ exports.createBooking = async (req, res) => {
 exports.updateBooking = async (req, res) => {
   try {
     const { booking_id } = req.body;
-
     if (!booking_id) {
       return res.status(400).json({ message: "Booking ID is required." });
     }
-
     const booking = await Booking.findOne({ booking_id });
     if (!booking)
       return res.status(404).json({ message: "Booking not found." });
-
     for (let key in req.body) {
       if (key !== "booking_id" && req.body.hasOwnProperty(key)) {
         booking[key] = req.body[key];
       }
     }
-
     await booking.save();
-
     const populatedBooking = await Booking.findById(booking._id)
       .populate("payment_id")
       .populate("user_id")
-      .populate("provider_id");
-
+      .populate("provider_id")
+      .populate("service_ids");
     const io = req.app.get("io");
     io.to(String(populatedBooking.user_id._id)).emit(
       "bookingUpdated",
       populatedBooking
     );
-
     io.to(String(populatedBooking.provider_id._id)).emit(
       "bookingUpdated",
       populatedBooking
     );
-
     res.status(200).json({
       message: "Booking updated successfully",
       booking: populatedBooking,
@@ -173,38 +125,25 @@ exports.updateBooking = async (req, res) => {
 exports.getBookingsByUser = async (req, res) => {
   try {
     const { user_id } = req.params;
-
     if (!user_id) {
       return res.status(400).json({ message: "User ID is required" });
     }
-
     let bookings = await Booking.find({ user_id })
       .populate("provider_id")
       .populate("payment_id")
       .populate("user_id")
+      .populate("service_ids")
       .lean();
-
-    const serviceNames = [
-      ...new Set(
-        bookings.map((booking) => booking.service_names?.[0]).filter(Boolean)
-      ),
-    ];
-
-    const services = await Service.find({ name: { $in: serviceNames } }).lean();
-
-    const serviceMap = {};
-    services.forEach((service) => {
-      serviceMap[service.name] = service.image_url;
-    });
-
     bookings = bookings.map((booking) => {
-      const firstService = booking.service_names?.[0];
+      const serviceWithImage = booking.service_ids.find(
+        (service) => service && service.image_url
+      );
+      const image_url = serviceWithImage ? serviceWithImage.image_url : null;
       return {
         ...booking,
-        image_url: serviceMap[firstService] || null,
+        image_url: image_url,
       };
     });
-
     res.status(200).json(bookings);
   } catch (error) {
     console.error("Error fetching bookings:", error);

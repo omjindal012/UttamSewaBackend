@@ -23,19 +23,25 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
-  latitude: {
-    type: String,
+  location: {
+    type: {
+      type: String,
+      enum: ["Point"],
+      default: "Point",
+    },
+    coordinates: {
+      type: [Number],
+    },
   },
-  longitude: {
-    type: String,
-  },
-  addresses: [
+  addresses_id: [
     {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Address",
     },
   ],
 });
+
+userSchema.index({ "location.coordinates": "2dsphere" });
 
 userSchema.pre("save", function (next) {
   this.updated_at = new Date();

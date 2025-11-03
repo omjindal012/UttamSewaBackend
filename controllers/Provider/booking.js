@@ -1,5 +1,4 @@
 const Booking = require("../../models/Booking");
-const Provider = require("../../models/Provider");
 
 exports.getBookingsByProvider = async (req, res) => {
   try {
@@ -30,17 +29,13 @@ exports.rejectForProvider = async (req, res) => {
         .status(400)
         .json({ message: "booking_id and provider_id are required." });
     }
-
-    const booking = await Booking.findOne({ booking_id });
+    const booking = await Booking.findOneAndUpdate(
+      { booking_id },
+      { $addToSet: { rejectedBy: provider_id } },
+      { new: true }
+    );
     if (!booking)
       return res.status(404).json({ message: "Booking not found." });
-
-    const already = booking.rejectedBy.some(
-      (id) => String(id) === String(provider_id)
-    );
-    if (!already) booking.rejectedBy.push(provider_id);
-
-    await booking.save();
     res.json({
       message: "Rejected for this provider.",
       booking_id,

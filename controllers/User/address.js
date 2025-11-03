@@ -9,6 +9,10 @@ exports.saveAddress = async (req, res) => {
   }
 
   try {
+    const user = await User.findById(user_id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
     const newAddress = await Address.create({
       address,
       city,
@@ -16,18 +20,8 @@ exports.saveAddress = async (req, res) => {
       country,
       zip_code,
     });
-
-    const user = await User.findById(user_id);
-
-    if (!user) {
-      await Address.findByIdAndDelete(newAddress._id);
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    user.addresses.push(newAddress._id);
-
+    user.addresses_id.push(newAddress._id);
     await user.save();
-
     res.status(201).json({
       message: "Address saved successfully and linked to user",
       data: newAddress,
@@ -40,29 +34,24 @@ exports.saveAddress = async (req, res) => {
 
 exports.getAddress = async (req, res) => {
   try {
-    const { userId } = req.body;
-
+    const { userId } = req.query;
+    if (!userId) {
+      return res.status(400).json({ message: "User ID is required" });
+    }
     const user = await User.findById(userId).populate({
       path: "addresses",
       options: { sort: { created_at: -1 } },
     });
-
-    if (!user || user.addresses.length === 0) {
+    if (!user || user.addresses_id.length === 0) {
       return res
         .status(404)
         .json({ message: "No addresses found for this user" });
     }
-
-    const mostRecentAddress = user.addresses[0];
-
+    const mostRecentAddress = user.addresses_id[0];
     const { address, city, state, country, zip_code } = mostRecentAddress;
     const composed = `${address}, ${city}, ${state}, ${zip_code}, ${country}`;
 
-    res.status(200).json({
-      composed,
-      data: mostRecentAddress,
-      all_addresses: user.addresses,
-    });
+    res.status(200).json(composed);
   } catch (error) {
     console.error("Fetch address error:", error);
     res.status(500).json({ message: "Internal server error" });

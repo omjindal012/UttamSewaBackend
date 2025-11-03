@@ -38,12 +38,6 @@ const providerSchema = new mongoose.Schema({
   experience: {
     type: Number,
   },
-  latitude: {
-    type: String,
-  },
-  longitude: {
-    type: String,
-  },
   shop_address_id: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Address",
@@ -56,6 +50,16 @@ const providerSchema = new mongoose.Schema({
     unique: true,
     sparse: true,
   },
+  location: {
+    type: {
+      type: String,
+      enum: ["Point"],
+      default: "Point",
+    },
+    coordinates: {
+      type: [Number],
+    },
+  },
   created_at: {
     type: Date,
     default: Date.now,
@@ -65,6 +69,8 @@ const providerSchema = new mongoose.Schema({
     default: Date.now,
   },
 });
+
+providerSchema.index({ "location.coordinates": "2dsphere" });
 
 providerSchema.pre("save", function (next) {
   this.updated_at = Date.now();

@@ -1,5 +1,5 @@
 const nodemailer = require("nodemailer");
-const provider = require("../../models/Provider");
+const User = require("../../models/User");
 
 const otpStore = {};
 
@@ -13,7 +13,6 @@ const transporter = nodemailer.createTransport({
 
 exports.sendOTP = async (req, res) => {
   const { email } = req.body;
-
   if (!email) {
     return res
       .status(400)
@@ -40,11 +39,11 @@ exports.sendOTP = async (req, res) => {
 };
 
 exports.verifyOtp = async (req, res) => {
-  const { email, otp, providerId } = req.body;
+  const { email, otp, userId } = req.body;
   try {
     if (otpStore[email] && otpStore[email] == otp) {
       delete otpStore[email];
-      await provider.findByIdAndUpdate(providerId, { email }, { new: true });
+      await User.findByIdAndUpdate(userId, { email }, { new: true });
       return res.json({
         success: true,
         message: "OTP verified and email saved",

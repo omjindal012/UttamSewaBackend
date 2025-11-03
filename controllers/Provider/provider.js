@@ -2,33 +2,37 @@ const Provider = require("../../models/Provider");
 const Token = require("../../models/Token");
 
 exports.updateProvider = async (req, res) => {
-  const { _id } = req.body;
+  const { _id, latitude, longitude, ...updateData } = req.body;
 
   if (!_id) {
     return res.status(400).json({ error: "Provider ID (_id) is required" });
   }
 
   try {
-    let provider = await Provider.findById(_id);
-    if (!provider) {
-      return res.status(404).json({ error: "Provider not found" });
-    }
-
-    for (let key in req.body) {
-      if (key !== "_id") {
-        provider[key] = req.body[key];
-      }
-    }
-
     if (req.files?.aadhar?.[0]?.path) {
-      provider.aadhar = req.files.aadhar[0].path;
+      updateData.aadhar = req.files.aadhar[0].path;
     }
 
     if (req.files?.profile_pic_url?.[0]?.path) {
-      provider.profile_pic_url = req.files.profile_pic_url[0].path;
+      updateData.profile_pic_url = req.files.profile_pic_url[0].path;
     }
 
-    await provider.save();
+    if (latitude && longitude) {
+      updateData.location = {
+        type: "Point",
+        coordinates: [Number(longitude), Number(latitude)],
+      };
+    }
+
+    const provider = await Provider.findByIdAndUpdate(
+      _id,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    );
+
+    if (!provider) {
+      return res.status(404).json({ error: "Provider not found" });
+    }
 
     res.status(200).json({
       message: "Provider updated successfully",

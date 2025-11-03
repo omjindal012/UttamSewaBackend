@@ -44,9 +44,10 @@ const bookingSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  service_names: [
+  service_ids: [
     {
-      type: String,
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Service",
       required: true,
     },
   ],
@@ -83,6 +84,6 @@ const bookingSchema = new mongoose.Schema({
   },
 });
 
-bookingSchema.index({ bookingLocation: "2dsphere" });
+bookingSchema.index({ "bookingLocation.coordinates": "2dsphere" });
 
 module.exports = mongoose.model("Booking", bookingSchema);

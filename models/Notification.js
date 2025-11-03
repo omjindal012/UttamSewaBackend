@@ -4,7 +4,12 @@ const notificationSchema = new mongoose.Schema({
   user_id: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
-    required: true,
+    default: null,
+  },
+  provider_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Provider",
+    default: null,
   },
   image_url: {
     type: String,

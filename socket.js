@@ -2,6 +2,7 @@ const { Server } = require("socket.io");
 const getDistanceFromLatLng = require("./utils/distance");
 const Booking = require("./models/Booking");
 const Provider = require("./models/Provider");
+const { Expo } = require("expo-server-sdk");
 
 function initSocket(server) {
   const io = new Server(server, { cors: { origin: "*" } });
@@ -86,7 +87,8 @@ function initSocket(server) {
         )
           .populate("payment_id")
           .populate("user_id")
-          .populate("provider_id");
+          .populate("provider_id")
+          .populate("service_ids");
 
         if (!updatedBooking) {
           console.log(
@@ -98,6 +100,12 @@ function initSocket(server) {
               "This booking has already been accepted by another provider.",
           });
         }
+
+        const serviceWithImage = updatedBooking.service_ids.find(
+          (service) => service && service.image_url
+        );
+        const image_url = serviceWithImage ? serviceWithImage.image_url : null;
+        updatedBooking.image_url = image_url;
 
         console.log(
           `Booking ${bookingId} successfully accepted by provider ${providerId}.`
@@ -176,23 +184,65 @@ function initSocket(server) {
     try {
       const booking = await Booking.findById(bookingMongoId)
         .populate("payment_id")
+        .populate("service_ids")
         .populate("user_id");
 
-      if (!booking) return clearExpansion(bookingMongoId);
-      if (booking.status !== "Pending") return clearExpansion(bookingMongoId);
-      if (
-        !booking.bookingLocation ||
-        !Array.isArray(booking.bookingLocation.coordinates) ||
-        booking.bookingLocation.coordinates.length !== 2
-      ) {
-        console.warn(
-          `Booking ${booking._id} missing bookingLocation, stopping expansion.`
-        );
+      if (!booking || booking.status !== "Pending")
         return clearExpansion(bookingMongoId);
-      }
+
+      const serviceWithImage = booking.service_ids.find(
+        (service) => service && service.image_url
+      );
+      const image_url = serviceWithImage ? serviceWithImage.image_url : null;
+      booking.image_url = image_url;
 
       const [lng, lat] = booking.bookingLocation.coordinates;
       const radiusKm = EXPANSION_STEPS_KM[stepIndex];
+
+      const expo = new Expo({ accessToken: process.env.EXPO_ACCESS_TOKEN });
+      const messages = [];
+
+      const providers = await Provider.find({
+        status: "online",
+        service: booking.category,
+        "location.coordinates": {
+          $nearSphere: {
+            $geometry: {
+              type: "Point",
+              coordinates: [Number(lng), Number(lat)],
+            },
+            $maxDistance: radiusKm * 1000,
+          },
+        },
+        pushToken: { $exists: true, $ne: null },
+      });
+
+      for (const provider of providers) {
+        if (Expo.isExpoPushToken(provider.pushToken)) {
+          console.log("Sending Request");
+          messages.push({
+            to: provider.pushToken,
+            sound: "default",
+            title: "New Job Request!",
+            body: `A new booking has been created for ${booking.category} service near you.`,
+            data: {
+              bookingId: booking._id,
+              bookingData: booking,
+            },
+          });
+        }
+      }
+
+      const chunks = expo.chunkPushNotifications(messages);
+      for (const chunk of chunks) {
+        console.log("Sending Chunks");
+        try {
+          await expo.sendPushNotificationsAsync(chunk);
+          console.log(`Sent ${chunk.length} push notifications.`);
+        } catch (error) {
+          console.error("Error sending push notifications:", error);
+        }
+      }
 
       await notifyProvidersWithinRange(
         Number(lat),

@@ -15,7 +15,16 @@ const storage = new CloudinaryStorage({
   },
 });
 
+const userIssueStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: "Uttam_sewa_User_Issues",
+    allowedFormats: ["png", "jpg", "jpeg"],
+  },
+});
+
 module.exports = {
   cloudinary,
   storage,
+  userIssueStorage,
 };
